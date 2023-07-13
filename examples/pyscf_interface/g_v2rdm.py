@@ -72,8 +72,8 @@ def g2aabb_trace(nmo: int, nalpha: int, nbeta: int, block_num: int, alpha_beta: 
     ----------------------
     | G^bb_aa | G^bb_bb |
     """
-    block_number=[block_num] * (2 * nmo * nmo)
-    value = [1.0] * (2 * nmo * nmo)
+    block_number=[block_num] * (nmo * nmo)
+    value = [1.0] * (nmo * nmo)
     row = []
     column = []
     bvals = []
@@ -246,25 +246,29 @@ def build_hamiltonian(nmo, oei, tei):
     # all 4 spin-blocks of the two-electron integrals
     shift = nmo * nmo
     tei_mat = tei.transpose(0, 1, 3, 2).reshape((nmo * nmo, nmo * nmo))
+    # aaaa-block
     for ij, kl in itertools.product(range(nmo * nmo), repeat=2):
         block_number.append(3)
-        row.append(ij+1)
-        column.append(kl+1)
+        row.append(ij + 1)
+        column.append(kl + 1)
         value.append(0.5 * tei_mat[ij, kl])
+    # bbbb-block
     for ij, kl in itertools.product(range(nmo * nmo), repeat=2):
         block_number.append(3)
         row.append(ij + 1 + shift)
         column.append(kl + 1 + shift)
         value.append(0.5 * tei_mat[ij, kl])
+    # bbaa-block
     for ij, kl in itertools.product(range(nmo * nmo), repeat=2):
-        block_number.append(4)
-        row.append(ij+1)
-        column.append(kl+1)
+        block_number.append(3)
+        row.append(ij + 1 + shift)
+        column.append(kl + 1)
         value.append(0.5 * tei_mat[ij, kl])
+    # aabb-block
     for ij, kl in itertools.product(range(nmo * nmo), repeat=2):
-        block_number.append(5)
-        row.append(ij+1)
-        column.append(kl+1)
+        block_number.append(3)
+        row.append(ij + 1)
+        column.append(kl + 1 + shift)
         value.append(0.5 * tei_mat[ij, kl])
     F.block_number = block_number
     F.row          = row
@@ -379,7 +383,7 @@ def main():
     oei       = kinetic + potential
 
     # transform core hamiltonian to mo basis
-    oei = np.einsum('uj,vi,uv',C,C,oei)
+    oei = np.einsum('uj,vi,uv',C,C,oei) - 0.5 * np.einsum('irrj->ij', tei)
 
     # number of occupied orbitals
     occ = mf.mo_occ
