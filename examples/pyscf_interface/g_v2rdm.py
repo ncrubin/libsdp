@@ -408,7 +408,7 @@ def main():
     # set options
     options = libsdp.sdp_options()
 
-    maxiter = 5000000
+    maxiter = 5000
 
     options.sdp_algorithm             = options.SDPAlgorithm.RRSDP
     options.maxiter                   = maxiter

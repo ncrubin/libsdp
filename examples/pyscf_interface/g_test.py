@@ -1,3 +1,4 @@
+import itertools
 from pyscf import gto, scf, ao2mo, fci
 from pyscf.fci.cistring import make_strings
 
@@ -74,6 +75,7 @@ def main():
     # transform core hamiltonian to mo basis
     oei = np.einsum('uj,vi,uv',C,C,oei)
     norb = oei.shape[0]
+    nso = 2 * norb
 
     myci = fci.FCI(mf) 
     roots, wfs = myci.kernel(nroots=2)
@@ -85,6 +87,18 @@ def main():
     opdma = opdm[::2, ::2]
     opdmb = opdm[1::2, 1::2]
     phdm = map_two_pdm_to_particle_hole_dm(tpdm, opdm) # spin-orbital phdm
+
+    kdelta = np.eye(nso)
+    hpdm = np.zeros_like(phdm)
+    for p, q, r, s in itertools.product(range(nso), repeat=4):
+        hpdm[p, q, r, s] = kdelta[p, q] * kdelta[r, s]
+        hpdm[p, q, r, s] -= kdelta[p, q] * opdm[s, r]
+        hpdm[p, q, r, s] -= kdelta[r, s] * opdm[q, p]
+        hpdm[p, q, r, s] += phdm[q, p, s, r]
+    hpdm_mat = hpdm.transpose(0, 1, 3, 2).reshape((nso**2, nso**2))
+    w, v = np.linalg.eigh(hpdm_mat)
+    assert np.isclose(hpdm_mat.trace(), (nso - nelec) * (nelec + 1))
+
     phdm_aaaa = phdm[::2, ::2, ::2, ::2]
     phdm_bbbb = phdm[1::2, 1::2, 1::2, 1::2]
     phdm_aabb = phdm[::2, ::2, 1::2, 1::2]
@@ -98,7 +112,6 @@ def main():
     gs_e_test_two_body *= 0.5
     assert np.isclose(gs_e_test_one_body + gs_e_test_two_body + mf.energy_nuc(),
                       gs_e)
-
 
     # test contraction to D1a
     d1a  = 0.25 / (norb - nbeta) * np.einsum('irrj', phdm_abba)
