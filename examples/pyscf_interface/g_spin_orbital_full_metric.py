@@ -203,6 +203,83 @@ def g2_internal_constraints(nso: int, block_num_d1: int, block_num_g2: int):
 
     return F, bvals
 
+
+def antisymm(nso, block_num_d1, block_num_g2aabb):
+    F = []
+    bvals = []
+    kdelta = np.eye(nso)
+    nmo = nso // 2
+    for i, l, j, k in itertools.product(range(nso), repeat=4):
+        block_number=[]
+        row=[]
+        column=[]
+        value=[]
+        il = (2 * i) * nso + (2 * l)
+        kj = (2 * k) * nso + (2 * j)
+        jl = (2 * j) * nso + (2 * l)
+        ki = (2 * k) * nso + (2 * i)
+
+        block_number.append(block_num_g2aabb)
+        row.append(jl + 1)
+        column.append(ki + 1)
+        value.append(1.)
+        block_number.append(block_num_g2aabb)
+        row.append(il + 1)
+        column.append(kj + 1)
+        value.append(1.)
+        block_number.append(block_num_d1)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-kdelta[j,l])
+        block_number.append(block_num_d1)
+        row.append(j + 1)
+        column.append(k + 1)
+        value.append(-kdelta[i,l])
+
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0.0)
+
+        block_number=[]
+        row=[]
+        column=[]
+        value=[]
+        il = (2 * i + 1) * nso + (2 * l + 1)
+        kj = (2 * k + 1) * nso + (2 * j + 1)
+        jl = (2 * j + 1) * nso + (2 * l + 1)
+        ki = (2 * k + 1) * nso + (2 * i + 1)
+
+        block_number.append(block_num_g2aabb)
+        row.append(jl + 1)
+        column.append(ki + 1)
+        value.append(1.)
+        block_number.append(block_num_g2aabb)
+        row.append(il + 1)
+        column.append(kj + 1)
+        value.append(1.)
+        block_number.append(block_num_d1)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-kdelta[j,l])
+        block_number.append(block_num_d1)
+        row.append(j + 1)
+        column.append(k + 1)
+        value.append(-kdelta[i,l])
+
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0.0)
+
+    return F, bvals
+
 def build_hamiltonian(nmo, oei, tei):
     of_eris = tei.transpose(0, 2, 3, 1)
     one_body_coefficients, two_body_coefficients = spinorb_from_spatial(oei, of_eris)
@@ -287,13 +364,15 @@ def build_sdp(nalpha, nbeta, nmo, oei, tei):
     b.extend(bvals)
     F.extend(Fi)
 
-    # Fi, bvals = g2_phph_contract_to_d1(nso, nalpha + nbeta, 1, 2)
-    # b.extend(bvals)
-    # F.extend(Fi)
+    Fi, bvals = g2_phph_contract_to_d1(nso, nalpha + nbeta, 1, 2)
+    b.extend(bvals)
+    F.extend(Fi)
 
     Fi, bvals = g2_internal_constraints(nso, 1, 2)
     b.extend(bvals)
     F.extend(Fi)
+
+    Fi, bvals = antisymm(nso, 1, 2)
 
     assert len(F) - 1 == len(b)
     return b, F, dimensions
