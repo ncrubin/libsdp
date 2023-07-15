@@ -47,7 +47,7 @@ def g2ab_trace(nmo, nalpha, nbeta, block_num) -> Tuple[List, List]:
     value = [1.0] * (nmo * nmo)
     row = []
     column = []
-    bvals = [nalpha * (nmo - nbeta)]
+    bvals = [nalpha * nbeta]
     for i, j in itertools.product(range(nmo), repeat=2):
         ij = i * nmo + j
         row.append(ij+1)
@@ -58,7 +58,6 @@ def g2ab_trace(nmo, nalpha, nbeta, block_num) -> Tuple[List, List]:
     F.column       = column
     F.value        = value
     return [F], bvals
-
 
 def g2ba_trace(nmo, nalpha, nbeta, block_num) -> Tuple[List, List]:
     block_number=[block_num] * (nmo * nmo)
@@ -104,13 +103,11 @@ def g2aabb_trace(nmo: int, block_num: int, row_offset: int, col_offset: int, tra
     F.value        = value
     return [F], bvals
 
-def gaaaa_to_d1a(nmo, offset, nalpha, block_num_d1a, block_num_g2aabb):
+
+def g_to_d1_1(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
     F = []
     bvals = []
     shift = nmo * nmo
-    kdelta = np.eye(nmo)
-
-    # g2aaaa(ij, kj) = (nmo - nalpha + 1) d1a(i, k)
     for i, k in product(range(nmo), repeat=2):
         block_number = []
         row = []
@@ -120,8 +117,8 @@ def gaaaa_to_d1a(nmo, offset, nalpha, block_num_d1a, block_num_g2aabb):
             ij = i * nmo + j
             kj = k * nmo + j
             block_number.append(block_num_g2aabb)
-            row.append(ij + 1 + offset)
-            column.append(kj + 1 + offset)
+            row.append(ij + 1)
+            column.append(kj + 1)
             value.append(1.)
 
         block_number.append(block_num_d1a)
@@ -136,7 +133,45 @@ def gaaaa_to_d1a(nmo, offset, nalpha, block_num_d1a, block_num_g2aabb):
         F.append(Fi)
         bvals.append(0.0)
 
-    # g2aaaa(ij, il) = nalpha djl - (nalpha - 1) d1a(l, j)
+    return F, bvals
+
+def g_to_d1_2(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    for i, k in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for j in range(nmo):
+            ij = i * nmo + j
+            kj = k * nmo + j
+            block_number.append(block_num_g2aabb)
+            row.append(ij + 1 + shift)
+            column.append(kj + 1 + shift)
+            value.append(1.)
+
+        block_number.append(block_num_d1a)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-(nmo - nbeta + 1))
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0.0)
+
+    return F, bvals
+
+
+def g_to_d1_3(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
     for j, l in product(range(nmo), repeat=2):
         block_number = []
         row = []
@@ -146,8 +181,8 @@ def gaaaa_to_d1a(nmo, offset, nalpha, block_num_d1a, block_num_g2aabb):
             ij = i * nmo + j
             il = i * nmo + l
             block_number.append(block_num_g2aabb)
-            row.append(ij + 1 + offset)
-            column.append(il + 1 + offset)
+            row.append(ij + 1)
+            column.append(il + 1)
             value.append(1.)
 
         block_number.append(block_num_d1a)
@@ -161,69 +196,45 @@ def gaaaa_to_d1a(nmo, offset, nalpha, block_num_d1a, block_num_g2aabb):
         Fi.value        = value
         F.append(Fi)
         bvals.append(nalpha * kdelta[j, l])
-    
-    # g2aaaa(ij, kk) = nalpha d1a(i, j)
-    for i, j in product(range(nmo), repeat=2):
-        block_number = []
-        row = []
-        column = []
-        value = []
-        for k in range(nmo):
-            ij = i * nmo + j
-            kk = k * nmo + k
-            block_number.append(block_num_g2aabb)
-            row.append(ij + 1 + offset)
-            column.append(kk + 1 + offset)
-            value.append(1.)
+    return F, bvals
 
-        block_number.append(block_num_d1a)
-        row.append(i + 1)
-        column.append(j + 1)
-        value.append(-nalpha)
-        Fi = libsdp.sdp_matrix()
-        Fi.block_number = block_number
-        Fi.row          = row
-        Fi.column       = column
-        Fi.value        = value
-        F.append(Fi)
-        bvals.append(0)
-
-    # g2aaaa(ii, kl) = nalpha d1a(l, k)
-    for k, l in product(range(nmo), repeat=2):
+def g_to_d1_4(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for j, l in product(range(nmo), repeat=2):
         block_number = []
         row = []
         column = []
         value = []
         for i in range(nmo):
-            ii = i * nmo + i
-            kl = k * nmo + l
+            ij = i * nmo + j
+            il = i * nmo + l
             block_number.append(block_num_g2aabb)
-            row.append(ii + 1 + offset) 
-            column.append(kl + 1 + offset)
+            row.append(ij + 1 + shift)
+            column.append(il + 1 + shift)
             value.append(1.)
 
-        block_number.append(block_num_d1a)
+        block_number.append(block_num_d1b)
         row.append(l + 1)
-        column.append(k + 1)
-        value.append(-nalpha)
+        column.append(j + 1)
+        value.append(nbeta - 1)
         Fi = libsdp.sdp_matrix()
         Fi.block_number = block_number
         Fi.row          = row
         Fi.column       = column
         Fi.value        = value
         F.append(Fi)
-        bvals.append(0)
-
+        bvals.append(nbeta * kdelta[j, l])
     return F, bvals
 
 
-def gabab_to_d1(nmo, n1, block_num_d1_1, n2, block_num_d1_2, block_num_g2ab):
+def g_to_d1_5(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
     F = []
     bvals = []
     shift = nmo * nmo
     kdelta = np.eye(nmo)
-
-    # g2ab(ij, kj) = (nmo - nbeta) d1a(i, k)
     for i, k in product(range(nmo), repeat=2):
         block_number = []
         row = []
@@ -237,10 +248,10 @@ def gabab_to_d1(nmo, n1, block_num_d1_1, n2, block_num_d1_2, block_num_g2ab):
             column.append(kj + 1)
             value.append(1.)
 
-        block_number.append(block_num_d1_1)
+        block_number.append(block_num_d1a)
         row.append(i + 1)
         column.append(k + 1)
-        value.append(-(nmo - n1))
+        value.append(-(nmo - nbeta))
         Fi = libsdp.sdp_matrix()
         Fi.block_number = block_number
         Fi.row          = row
@@ -248,8 +259,44 @@ def gabab_to_d1(nmo, n1, block_num_d1_1, n2, block_num_d1_2, block_num_g2ab):
         Fi.value        = value
         F.append(Fi)
         bvals.append(0)
+    return F, bvals
 
-    # g2ab(ij, il) = nalpha djl - nalpha d1b(l, j)
+def g_to_d1_6(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for i, k in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for j in range(nmo):
+            ij = i * nmo + j
+            kj = k * nmo + j
+            block_number.append(block_num_g2ba)
+            row.append(ij + 1)
+            column.append(kj + 1)
+            value.append(1.)
+
+        block_number.append(block_num_d1b)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-(nmo - nalpha))
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
+
+def g_to_d1_7(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
     for j, l in product(range(nmo), repeat=2):
         block_number = []
         row = []
@@ -263,28 +310,56 @@ def gabab_to_d1(nmo, n1, block_num_d1_1, n2, block_num_d1_2, block_num_g2ab):
             column.append(il + 1)
             value.append(1.)
 
-        block_number.append(block_num_d1_2)
+        block_number.append(block_num_d1b)
         row.append(l + 1)
         column.append(j + 1)
-        value.append(n2)
+        value.append(nalpha)
         Fi = libsdp.sdp_matrix()
         Fi.block_number = block_number
         Fi.row          = row
         Fi.column       = column
         Fi.value        = value
         F.append(Fi)
-        bvals.append(n2 * kdelta[j, l])
-    
+        bvals.append(nalpha * kdelta[j, l])
     return F, bvals
 
-
-def g2aabb_d1(nmo, row_offset, col_offset, n1, block_num_d1_1, n2, block_num_d1_2, block_num_g2aabb):
+def g_to_d1_8(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
     F = []
     bvals = []
     shift = nmo * nmo
     kdelta = np.eye(nmo)
+    for j, l in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for i in range(nmo):
+            ij = i * nmo + j
+            il = i * nmo + l
+            block_number.append(block_num_g2ba)
+            row.append(ij + 1)
+            column.append(il + 1)
+            value.append(1.)
 
-    # g2aabb(ij, kk) = nbeta d1a(i, j)
+        block_number.append(block_num_d1a)
+        row.append(l + 1)
+        column.append(j + 1)
+        value.append(nbeta)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(nbeta * kdelta[j, l])
+    return F, bvals
+
+
+def g_to_d1_9(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
     for i, j in product(range(nmo), repeat=2):
         block_number = []
         row = []
@@ -294,14 +369,14 @@ def g2aabb_d1(nmo, row_offset, col_offset, n1, block_num_d1_1, n2, block_num_d1_
             ij = i * nmo + j
             kk = k * nmo + k
             block_number.append(block_num_g2aabb)
-            row.append(ij + 1 + row_offset) 
-            column.append(kk + 1 + col_offset)
+            row.append(ij + 1)
+            column.append(kk + 1)
             value.append(1.)
 
-        block_number.append(block_num_d1_1)
+        block_number.append(block_num_d1a)
         row.append(i + 1)
         column.append(j + 1)
-        value.append(-n1)
+        value.append(-nalpha)
         Fi = libsdp.sdp_matrix()
         Fi.block_number = block_number
         Fi.row          = row
@@ -309,25 +384,30 @@ def g2aabb_d1(nmo, row_offset, col_offset, n1, block_num_d1_1, n2, block_num_d1_
         Fi.value        = value
         F.append(Fi)
         bvals.append(0)
+    return F, bvals
 
-    # g2aabb(ii, kl) = nalpha d1b(l, k)
-    for k, l in product(range(nmo), repeat=2):
+def g_to_d1_10(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for i, j in product(range(nmo), repeat=2):
         block_number = []
         row = []
         column = []
         value = []
-        for i in range(nmo):
-            ii = i * nmo + i
-            kl = k * nmo + l
+        for k in range(nmo):
+            ij = i * nmo + j
+            kk = k * nmo + k
             block_number.append(block_num_g2aabb)
-            row.append(ii + 1 + row_offset) 
-            column.append(kl + 1 + col_offset)
+            row.append(ij + 1 + shift) 
+            column.append(kk + 1 + shift)
             value.append(1.)
 
-        block_number.append(block_num_d1_2)
-        row.append(l + 1)
-        column.append(k + 1)
-        value.append(-n2)
+        block_number.append(block_num_d1b)
+        row.append(i + 1)
+        column.append(j + 1)
+        value.append(-nbeta)
         Fi = libsdp.sdp_matrix()
         Fi.block_number = block_number
         Fi.row          = row
@@ -338,345 +418,276 @@ def g2aabb_d1(nmo, row_offset, col_offset, n1, block_num_d1_1, n2, block_num_d1_
     return F, bvals
 
 
-# def antisymm_bbbb(nmo, block_num_d1, block_num_g2aabb):
-#     F = []
-#     bvals = []
-#     kdelta = np.eye(nmo)
-#     shift = nmo * nmo
-#     for p, q, s, r in product(range(nmo), repeat=4):
-#         block_number=[]
-#         row=[]
-#         column=[]
-#         value=[]
-#         ps = p * nmo + s
-#         rq = r * nmo + q
-# 
-#         qs = q * nmo + s
-#         rp = r * nmo + p
-# 
-#         pr = p * nmo + r
-#         sq = s * nmo + q
-# 
-#         qs = q * nmo + s
-#         rp = r * nmo + p
-# 
-#         # p^ s q^ r
-#         block_number.append(block_num_g2aabb)
-#         row.append(ps + 1 + shift)
-#         column.append(rq + 1 + shift)
-#         value.append(-1.)
-#         # q^ s p^ r
-#         block_number.append(block_num_g2aabb)
-#         row.append(qs + 1 + shift)
-#         column.append(rp + 1 + shift)
-#         value.append(-1.)
-#         # p^ r q^ s
-#         block_number.append(block_num_g2aabb)
-#         row.append(pr + 1 + shift)
-#         column.append(sq + 1 + shift)
-#         value.append(-1.)
-#         # q^ s p^ r
-#         block_number.append(block_num_g2aabb)
-#         row.append(qs + 1 + shift)
-#         column.append(rp + 1 + shift)
-#         value.append(-1.)
-# 
-#         # p^ r delta_{qs}
-#         block_number.append(block_num_d1)
-#         row.append(p + 1)
-#         column.append(r + 1)
-#         value.append(kdelta[q, s])
-#         # q^ r delta_ps
-#         block_number.append(block_num_d1)
-#         row.append(q + 1)
-#         column.append(r + 1)
-#         value.append(kdelta[p, s])
-#         # p^ s delta_rq
-#         block_number.append(block_num_d1)
-#         row.append(p + 1)
-#         column.append(s + 1)
-#         value.append(kdelta[r, q])
-#         # q^ r delta_ps
-#         block_number.append(block_num_d1)
-#         row.append(q + 1)
-#         column.append(r + 1)
-#         value.append(kdelta[p, s])
-#         Fi = libsdp.sdp_matrix()
-#         Fi.block_number = block_number
-#         Fi.row          = row
-#         Fi.column       = column
-#         Fi.value        = value
-#         F.append(Fi)
-#         bvals.append(0.0)
-# 
-#     return F, bvals
-
-def g2aaaa_antisymmetry(nmo, offset, d1_block_id, g2aabb_block_num):
-    """
-    g2aaaa subblock should satisfy antisymmetry of d2aa
-
-    :param offset:      the offset of the row and column geminal labels
-    :param d1_block_id: the relevant block of d1 (a or b)
-    """
+def g_to_d1_11(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
     F = []
-    b = []
-    delta = np.eye(nmo)
-
-    # g2aaaa(ik, jl) + g2aaaa(ij, kl) - d1a(i, k) djl - d1a(i, j) dlk
-    for i, j in product(range(nmo), repeat=2):
-        ij = i * nmo + j
-        for k, l in product(range(nmo), repeat=2):
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for k, l in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for i in range(nmo):
+            ii = i * nmo + i
             kl = k * nmo + l
-            block_number=[]
-            row=[]
-            column=[]
-            value=[]
+            block_number.append(block_num_g2aabb)
+            row.append(ii + 1) 
+            column.append(kl + 1)
+            value.append(1.)
 
-            ik = i * nmo + k
-            jl = j * nmo + l
+        block_number.append(block_num_d1a)
+        row.append(l + 1)
+        column.append(k + 1)
+        value.append(-nalpha)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-            block_number.append(g2aabb_block_num)
-            row.append(ij + offset + 1)
-            column.append(kl + offset + 1)
-            value.append(1.0)
-
-            block_number.append(g2aabb_block_num)
-            row.append(ik + offset + 1)
-            column.append(jl + offset + 1)
-            value.append(1.0)
-
-            block_number.append(d1_block_id)
-            row.append(i + 1)
-            column.append(k + 1)
-            value.append(-delta[j, l])
-
-            block_number.append(d1_block_id)
-            row.append(i + 1)
-            column.append(j + 1)
-            value.append(-delta[l, k])
-
-            Fi = libsdp.sdp_matrix()
-            Fi.block_number = block_number
-            Fi.row          = row
-            Fi.column       = column
-            Fi.value        = value
-            F.append(Fi)
-            b.append(0.0)
-
-    # g2aaaa(lj, ki) + g2aaaa(lk, ji) - d1a(l, k) dji - d1a(l, j) dki
-    for l, k in product(range(nmo), repeat=2):
-        lk = l * nmo + k
-        for j, i in product(range(nmo), repeat=2):
-            ji = j * nmo + i
-            lj = l * nmo + j
-            ki = k * nmo + i
-
-            block_number=[]
-            row=[]
-            column=[]
-            value=[]
-
-            block_number.append(g2aabb_block_num)
-            row.append(lj + offset + 1)
-            column.append(ki + offset + 1)
-            value.append(1.0)
-
-            block_number.append(g2aabb_block_num)
-            row.append(lk + offset + 1)
-            column.append(ji + offset + 1)
-            value.append(1.0)
-
-            block_number.append(d1_block_id)
-            row.append(l + 1)
-            column.append(k + 1)
-            value.append(-delta[j, i])
-
-            block_number.append(d1_block_id)
-            row.append(l + 1)
-            column.append(j + 1)
-            value.append(-delta[k, i])
-
-            Fi = libsdp.sdp_matrix()
-            Fi.block_number = block_number
-            Fi.row          = row
-            Fi.column       = column
-            Fi.value        = value
-
-            F.append(Fi)
-            b.append(0.0)
-
-    # g2aaaa(ij, kl) - g2aaaa(lk, ji) - d1a(i, k) djl + d1a(l, j) dki = 0
-    for i, j in product(range(nmo), repeat=2):
-        ij = i * nmo + j
-        for k, l in product(range(nmo), repeat=2):
+def g_to_d1_12(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for k, l in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for i in range(nmo):
+            ii = i * nmo + i
             kl = k * nmo + l
+            block_number.append(block_num_g2aabb)
+            row.append(ii + 1 + shift) 
+            column.append(kl + 1 + shift)
+            value.append(1.)
 
-            block_number=[]
-            row=[]
-            column=[]
-            value=[]
+        block_number.append(block_num_d1b)
+        row.append(l + 1)
+        column.append(k + 1)
+        value.append(-nbeta)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-            lk = l * nmo + k
-            ji = j * nmo + i
+def g_to_d1_13(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for i, j in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for k in range(nmo):
+            ij = i * nmo + j
+            kk = k * nmo + k
+            block_number.append(block_num_g2aabb)
+            row.append(ij + 1) 
+            column.append(kk + 1 + shift)
+            value.append(1.)
 
-            block_number.append(g2aabb_block_num)
-            row.append(ij + offset + 1)
-            column.append(kl + offset + 1)
-            value.append(1.0)
+        block_number.append(block_num_d1a)
+        row.append(i + 1)
+        column.append(j + 1)
+        value.append(-nbeta)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-            block_number.append(g2aabb_block_num)
-            row.append(lk + offset + 1)
-            column.append(ji + offset + 1)
-            value.append(-1.0)
 
-            block_number.append(d1_block_id)
-            row.append(i + 1)
-            column.append(k + 1)
-            value.append(-delta[j, l])
+def g_to_d1_14(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for i, j in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for k in range(nmo):
+            ij = i * nmo + j
+            kk = k * nmo + k
+            block_number.append(block_num_g2aabb)
+            row.append(ij + 1 + shift) 
+            column.append(kk + 1)
+            value.append(1.)
 
-            block_number.append(d1_block_id)
-            row.append(l + 1)
-            column.append(j + 1)
-            value.append(delta[k, i])
+        block_number.append(block_num_d1b)
+        row.append(i + 1)
+        column.append(j + 1)
+        value.append(-nalpha)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-            Fi = libsdp.sdp_matrix()
-            Fi.block_number = block_number
-            Fi.row          = row
-            Fi.column       = column
-            Fi.value        = value
+def g_to_d1_15(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for k, l in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for i in range(nmo):
+            ii = i * nmo + i
+            kl = k * nmo + l
+            block_number.append(block_num_g2aabb)
+            row.append(ii + 1) 
+            column.append(kl + 1 + shift)
+            value.append(1.)
 
-            F.append(Fi)
-            b.append(0.0)
+        block_number.append(block_num_d1b)
+        row.append(l + 1)
+        column.append(k + 1)
+        value.append(-nalpha)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-    # g2aaaa(ik, jl) - g2aaaa(lj, ki) - d1a(i, j) dkl + d1a(l, k) dji
-    for i, k in product(range(nmo), repeat=2):
-        ik = i * nmo + k
-        for j, l in product(range(nmo), repeat=2):
-            jl = j * nmo + l
+def g_to_d1_16(nmo, nalpha, nbeta, block_num_d1a, block_num_d1b, block_num_g2aabb, block_num_g2ab, block_num_g2ba):
+    F = []
+    bvals = []
+    shift = nmo * nmo
+    kdelta = np.eye(nmo)
+    for k, l in product(range(nmo), repeat=2):
+        block_number = []
+        row = []
+        column = []
+        value = []
+        for i in range(nmo):
+            ii = i * nmo + i
+            kl = k * nmo + l
+            block_number.append(block_num_g2aabb)
+            row.append(ii + 1 + shift) 
+            column.append(kl + 1)
+            value.append(1.)
 
-            block_number=[]
-            row=[]
-            column=[]
-            value=[]
+        block_number.append(block_num_d1a)
+        row.append(l + 1)
+        column.append(k + 1)
+        value.append(-nbeta)
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0)
+    return F, bvals
 
-            lj = l * nmo + j
-            ki = k * nmo + i
 
-            block_number.append(g2aabb_block_num)
-            row.append(lj + offset + 1)
-            column.append(ki + offset + 1)
-            value.append(-1.0)
+def antisymm_aaaa(nmo, block_num_d1, block_num_g2aabb):
+    F = []
+    bvals = []
+    kdelta = np.eye(nmo)
+    for i, l, j, k in itertools.product(range(nmo), repeat=4):
+        block_number=[]
+        row=[]
+        column=[]
+        value=[]
+        il = i * nmo + l
+        kj = k * nmo + j
+        jl = j * nmo + l
+        ki = k * nmo + i
 
-            block_number.append(g2aabb_block_num)
-            row.append(ik + offset + 1)
-            column.append(jl + offset + 1)
-            value.append(1.0)
+        block_number.append(block_num_g2aabb)
+        row.append(jl + 1)
+        column.append(ki + 1)
+        value.append(1.)
+        block_number.append(block_num_g2aabb)
+        row.append(il + 1)
+        column.append(kj + 1)
+        value.append(1.)
+        block_number.append(block_num_d1)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-kdelta[j,l])
+        block_number.append(block_num_d1)
+        row.append(j + 1)
+        column.append(k + 1)
+        value.append(-kdelta[i,l])
 
-            block_number.append(d1_block_id)
-            row.append(i + 1)
-            column.append(j + 1)
-            value.append(-delta[k, l])
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0.0)
 
-            block_number.append(d1_block_id)
-            row.append(l + 1)
-            column.append(k + 1)
-            value.append(delta[j, i])
+    return F, bvals
 
-            Fi = libsdp.sdp_matrix()
-            Fi.block_number = block_number
-            Fi.row          = row
-            Fi.column       = column
-            Fi.value        = value
+def antisymm_bbbb(nmo, block_num_d1, block_num_g2aabb):
+    F = []
+    bvals = []
+    kdelta = np.eye(nmo)
+    shift = nmo * nmo
+    for i, l, j, k in itertools.product(range(nmo), repeat=4):
+        block_number=[]
+        row=[]
+        column=[]
+        value=[]
+        il = i * nmo + l
+        kj = k * nmo + j
+        jl = j * nmo + l
+        ki = k * nmo + i
 
-            F.append(Fi)
-            b.append(0.0)
-    return F, b
+        block_number.append(block_num_g2aabb)
+        row.append(jl + 1 + shift)
+        column.append(ki + 1 + shift)
+        value.append(1.)
+        block_number.append(block_num_g2aabb)
+        row.append(il + 1 + shift)
+        column.append(kj + 1 + shift)
+        value.append(1.)
+        block_number.append(block_num_d1)
+        row.append(i + 1)
+        column.append(k + 1)
+        value.append(-kdelta[j,l])
+        block_number.append(block_num_d1)
+        row.append(j + 1)
+        column.append(k + 1)
+        value.append(-kdelta[i,l])
 
-# def antisymm_aaaa(nmo, offset, block_num_d1, block_num_g2aabb):
-#     F = []
-#     bvals = []
-#     kdelta = np.eye(nmo)
-#     for i, l, j, k in itertools.product(range(nmo), repeat=4):
-#         block_number=[]
-#         row=[]
-#         column=[]
-#         value=[]
-#         il = i * nmo + l
-#         kj = k * nmo + j
-#         jl = j * nmo + l
-#         ki = k * nmo + i
-# 
-#         block_number.append(block_num_g2aabb)
-#         row.append(jl + 1 + offset)
-#         column.append(ki + 1 + offset)
-#         value.append(1.)
-#         block_number.append(block_num_g2aabb)
-#         row.append(il + 1 + offset)
-#         column.append(kj + 1 + offset)
-#         value.append(1.)
-#         block_number.append(block_num_d1)
-#         row.append(i + 1)
-#         column.append(k + 1)
-#         value.append(-kdelta[j,l])
-#         block_number.append(block_num_d1)
-#         row.append(j + 1)
-#         column.append(k + 1)
-#         value.append(-kdelta[i,l])
-# 
-#         Fi = libsdp.sdp_matrix()
-#         Fi.block_number = block_number
-#         Fi.row          = row
-#         Fi.column       = column
-#         Fi.value        = value
-#         F.append(Fi)
-#         bvals.append(0.0)
-# 
-#     return F, bvals
+        Fi = libsdp.sdp_matrix()
+        Fi.block_number = block_number
+        Fi.row          = row
+        Fi.column       = column
+        Fi.value        = value
+        F.append(Fi)
+        bvals.append(0.0)
 
-# def antisymm_aaaa(nmo, offset, block_num_d1, block_num_g2aabb):
-#     F = []
-#     bvals = []
-#     kdelta = np.eye(nmo)
-#     for i, j in product(range(nmo), repeat=2):
-#         ij = i * nmo + j
-#         for k, l in product(range(nmo), repeat=2):
-#             kl = k * nmo + l
-#             block_number = []
-#             row = []
-#             column = []
-#             value = []
-#             ik = i * nmo + k
-#             jl = j * nmo + l
-#             block_number.append(block_num_g2aabb)
-#             row.append(ij + offset + 1)
-#             column.append(kl + offset + 1)
-#             value.append(1.0)
-# 
-#             block_number.append(block_num_g2aabb)
-#             row.append(ik + offset + 1)
-#             column.append(jl + offset + 1)
-#             value.append(1.0)
-# 
-#             block_number.append(block_num_d1)
-#             row.append(i + 1)
-#             column.append(k + 1)
-#             value.append(-kdelta[j, l])
-#    
-#             block_number.append(block_num_d1)
-#             row.append(i + 1)
-#             column.append(j + 1)
-#             value.append(-kdelta[l, k])
-#    
-#             Fi = libsdp.sdp_matrix()
-#             Fi.block_number = block_number
-#             Fi.row          = row
-#             Fi.column       = column
-#             Fi.value        = value
-# 
-#             F.append(Fi)
-#             bvals.append(0.0)
-# 
-#     return F, bvals
+    return F, bvals
 
 def g2ab_2_ba(nmo, ab_block, ba_block):
     F = []
@@ -710,7 +721,7 @@ def g2ab_2_ba(nmo, ab_block, ba_block):
             F.append(Fi)
             bvals.append(0.0)
     return F, bvals
-   
+ 
 
 def build_hamiltonian(nmo, oei, tei):
     # F0 
@@ -804,11 +815,6 @@ def build_sdp(nalpha, nbeta, nmo, oei, tei):
     b = []
     F = [F0]
 
-    ###################
-    # 
-    # TRACE CONDITIONS
-    #
-    ####################
     # Tr(D1a)
     Fi, bvals = d1a_trace(nmo, nalpha, block_num=1)
     b.extend(bvals)
@@ -847,59 +853,92 @@ def build_sdp(nalpha, nbeta, nmo, oei, tei):
     b.extend(bvals)
     F.extend(Fi)
 
-    # ##########################
-    # # 
-    # # Contraction Conditions
-    # #
-    # ##########################
-    # Fi, bvals = gaaaa_to_d1a(nmo, 0, nalpha, 1, 3)
-    # b.extend(bvals)
-    # F.extend(Fi)
 
-    # Fi, bvals = gaaaa_to_d1a(nmo, nmo * nmo, nbeta, 2, 3)
-    # b.extend(bvals)
-    # F.extend(Fi)
-
-    # Fi, bvals = g2aabb_d1(nmo, 0, nmo * nmo, nbeta, 1, nalpha, 2, 3)
-    # b.extend(bvals)
-    # F.extend(Fi)
-
-    # Fi, bvals = g2aabb_d1(nmo, nmo * nmo, 0,  nalpha, 2, nbeta, 1, 3)
-    # b.extend(bvals)
-    # F.extend(Fi)
-
-    # Fi, bvals = gabab_to_d1(nmo, nbeta, 1, nalpha, 2, 4)
-    # b.extend(bvals)
-    # F.extend(Fi)
-
-    # Fi, bvals = gabab_to_d1(nmo, nalpha, 2, nbeta, 1, 5)
-    # b.extend(bvals)
-    # F.extend(Fi)
-
-    ######################
-    #
-    # Antisymm conditions
-    #
-    #######################
-    Fi, bvals = g2aaaa_antisymmetry(nmo, 0, 1, 3)
-    b.extend(bvals)
-    F.extend(Fi)
-    Fi, bvals = g2aaaa_antisymmetry(nmo, nmo * nmo, 1, 3)
+    Fi, bvals = g_to_d1_1(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
     b.extend(bvals)
     F.extend(Fi)
 
+    Fi, bvals = g_to_d1_2(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_3(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_4(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_5(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_6(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_7(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_8(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_9(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_10(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_11(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_12(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_13(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_14(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_15(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
+
+    Fi, bvals = g_to_d1_16(nmo, nalpha, nbeta, 1, 2, 3, 4, 5)
+    b.extend(bvals)
+    F.extend(Fi)
 
 
-    # Fi, bvals = antisymm_aaaa(nmo, nmo * nmo, 2, 3)
-    # b.extend(bvals)
-    # F.extend(Fi)
+    # D2aaaa antisymm
+    Fi, bvals = antisymm_aaaa(nmo, 1, 3) 
+    b.extend(bvals)
+    F.extend(Fi)
+
+    # d2bbbb antisymm
+    Fi, bvals = antisymm_bbbb(nmo, 2, 3) 
+    b.extend(bvals)
+    F.extend(Fi)
+
 
     ##########################
     #
     # G2ab <-> G2ba
     #
     ####################
-    # Fi, bvals = g2ab_2_ba(nmo, 4, 5)
+    Fi, bvals = g2ab_2_ba(nmo, 4, 5)
+
+
+
 
     assert len(F) - 1 == len(b)
     return b, F, dimensions
@@ -916,7 +955,8 @@ def main():
     mf = mol.RHF().run()
     myci = pyscf.fci.FCI(mf) 
     roots, wfs = myci.kernel(nroots=2)
-    print("FCI energy :", roots[0])
+    print(f"{(roots[0] - mf.energy_nuc())=}")
+
 
     # get mo coefficient matrix
     C = mf.mo_coeff
@@ -958,7 +998,7 @@ def main():
     # set options
     options = libsdp.sdp_options()
 
-    maxiter = 6000
+    maxiter = 5000
 
     options.sdp_algorithm             = options.SDPAlgorithm.BPSDP
     options.maxiter                   = maxiter
@@ -991,5 +1031,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-

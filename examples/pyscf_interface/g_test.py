@@ -47,7 +47,7 @@ def pyscf_to_fqe_wf(
 
 def main():
     mol = gto.M()
-    mol.atom = [['Li', 0, 0, 0], ['H', 0, 0, 1.4]]
+    mol.atom = [['H', 0, 0, 0], ['H', 0, 0, 1.0]]
     mol.basis = 'sto-3g'
     mol.build()
     nelec = mol.nelectron
@@ -112,6 +112,7 @@ def main():
     gs_e_test_two_body *= 0.5
     assert np.isclose(gs_e_test_one_body + gs_e_test_two_body + mf.energy_nuc(),
                       gs_e)
+    print(gs_e)
 
     # test contraction to D1a
     d1a  = 0.25 / (norb - nbeta) * np.einsum('irrj', phdm_abba)
