@@ -1,6 +1,9 @@
 """
 Driver for variational two-electron reduced-density matrix method. Integrals come from PySCF
 """
+import os
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 import numpy as np
 from numpy import einsum
 
@@ -69,7 +72,7 @@ def main():
 
     maxiter = 100000
 
-    options.sdp_algorithm             = options.SDPAlgorithm.BPSDP
+    options.sdp_algorithm             = options.SDPAlgorithm.RRSDP
     options.maxiter                   = maxiter
     options.sdp_error_convergence     = 1e-4
     options.sdp_objective_convergence = 1e-4
